@@ -22,7 +22,7 @@ for any Jev work.** Phaser 4 ships agent docs in `node_modules/phaser/skills/` â
 ## Gotcha
 `@typesafe-ai/sdk` 0.7.0 fails under Bun (incl. 1.4.3) with "Body already used"; 0.6.0 works. Root cause is a
 Bun bug (oven-sh/bun#45306: `getReader()`+`releaseLock()` marks a body used), triggered by 0.7.0's new
-`bufferResponse`. So `src/server/jev.ts` calls `POST /v1/systemone` directly with fetch, with 429/529 backoff.
+`bufferResponse` (tracked in typesafe-ai/typesafe-sdk-js#20). So `src/server/jev.ts` calls `POST /v1/systemone` directly with fetch, with 429/529 backoff.
 `TYPESAFE_BASE_URL` can point at a mock for offline testing.
 
 ## Deployment
