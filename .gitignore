@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# secrets: only the example env file is committed
+.env
+.env.*
+!.env.example
+
+# runtime
+logs/
+*.log
+
+# build / tooling
+dist/
+out/
+coverage/
+*.tsbuildinfo
+.cache/
+
+# editors / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp

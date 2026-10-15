@@ -1,0 +1,25 @@
+{
+  "name": "dungeon-of-jev",
+  "version": "1.0.0",
+  "description": "A turn-based dungeon crawler where every enemy is chosen and played by Jev, TypeSafe's System One model. An exploration of what Jev can do.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ericosg/doj.git"
+  },
+  "homepage": "https://doj.blocbrain.xyz",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --hot server.ts",
+    "start": "NODE_ENV=production bun server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "phaser": "4.2.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
