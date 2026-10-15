@@ -43,7 +43,7 @@ from turn 4 (the enemy Warrior is badly wounded and you are a Wizard):
 
 ```jsonc
 {
-  "model": "jev-latest",
+  "model": "jev-1.14.0",
   "state": {
     "situation": "Turn 4 of a one-on-one turn-based duel. You control `enemy`. ...",
     "enemy":  { "class": "Warrior", "hp": "31/80", "condition": "badly wounded", "mp": "12/20", ... },
@@ -129,8 +129,11 @@ scripts/                Balance simulator and Jev evaluations
 ```
 
 - No image assets: sprites are character maps drawn into canvas textures.
+- Runs on `jev-1.14.0` (set `TYPESAFE_MODEL` to change it).
 - The server calls TypeSafe's [HTTP API](https://docs.typesafe.ai/api) directly. `@typesafe-ai/sdk`
-  0.7.0 targets Node and fails under Bun with "Body already used".
+  0.7.0 fails under Bun with "Body already used" (0.6.0 works). The cause is a Bun bug,
+  [oven-sh/bun#45306](https://github.com/oven-sh/bun/issues/45306), which 0.7.0's response buffering
+  triggers.
 - The public server limits Jev calls per IP and sets a daily token budget
   (`JEV_PER_IP_PER_MINUTE`, `JEV_DAILY_TOKEN_BUDGET`). Past either limit, the game falls back to the
   local AI.

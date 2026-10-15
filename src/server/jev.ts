@@ -36,7 +36,7 @@ async function systemOne(body: { state: Json; questions: Record<string, Json> })
   const init = {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.TYPESAFE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: process.env.TYPESAFE_MODEL ?? "jev-latest", ...body }),
+    body: JSON.stringify({ model: process.env.TYPESAFE_MODEL ?? "jev-1.14.0", ...body }),
     signal: AbortSignal.timeout(15_000),
   };
   for (let attempt = 0; ; attempt++) {

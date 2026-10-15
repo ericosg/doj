@@ -20,8 +20,9 @@ for any Jev work.** Phaser 4 ships agent docs in `node_modules/phaser/skills/` �
 - If Jev is unreachable the client falls back to a greedy AI and the "Jev's mind" panel says so.
 
 ## Gotcha
-`@typesafe-ai/sdk` 0.7.0 fails under Bun ("Body already used" in its response buffering), so
-`src/server/jev.ts` calls `POST /v1/systemone` directly with fetch, with 429/529 backoff.
+`@typesafe-ai/sdk` 0.7.0 fails under Bun (incl. 1.4.3) with "Body already used"; 0.6.0 works. Root cause is a
+Bun bug (oven-sh/bun#45306: `getReader()`+`releaseLock()` marks a body used), triggered by 0.7.0's new
+`bufferResponse`. So `src/server/jev.ts` calls `POST /v1/systemone` directly with fetch, with 429/529 backoff.
 `TYPESAFE_BASE_URL` can point at a mock for offline testing.
 
 ## Deployment
@@ -36,7 +37,8 @@ Public API is guarded: 30 Jev calls/min per IP, 10M input tokens/day (~$0.42) �
 - `scripts/eval-jev.ts` — real Jev on clear-cut scenarios (lethal available, about to die, empowered…), 3× each with shuffled options.
 - `scripts/jev-sim.ts [n]` — careful bot vs real Jev, full runs (~$0.01 per run).
 - Champion class is *sampled* from Jev's probabilities (Jev rates it ~50/50; argmax always fielded one class). Moves use argmax.
-- `jev-latest` resolved to jev-1.13.0 on 2026-10-15; jev-1.14.0 also passed eval. Override with `TYPESAFE_MODEL`.
+- Model pinned to `jev-1.14.0` (2026-10-15; `jev-latest` still pointed at 1.13.0). Override with `TYPESAFE_MODEL`.
+  1.14 passed every eval scenario and plays noticeably harder than 1.13 in `jev-sim`.
 
 ## Commands
 ```bash
