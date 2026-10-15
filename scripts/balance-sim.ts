@@ -1,6 +1,6 @@
 // Offline balance check: a sensible player bot vs a greedy enemy, full 5-room runs. No API calls.
 // Usage: bun scripts/balance-sim.ts
-import { ROOMS, applyMove, availableMoves, cloneFighter, enemyScaling, makeFighter, maxThreat, restAfterVictory, startTurn, type ClassId, type Fighter, type MoveId } from "../src/shared/rules";
+import { BOSS_FORMS, BOSS_ROOM, ROOMS, makeBoss, applyMove, availableMoves, cloneFighter, enemyScaling, makeFighter, maxThreat, restAfterVictory, startTurn, type ClassId, type Fighter, type MoveId } from "../src/shared/rules";
 
 function greedy(me: Fighter, foe: Fighter, careful: boolean): MoveId {
   const opts = availableMoves(me);
@@ -25,7 +25,7 @@ function fight(p: Fighter, e: Fighter): { won: boolean; turns: number } {
     startTurn(p); if (p.hp <= 0) return { won: false, turns: t };
     applyMove(p, e, greedy(p, e, true)); if (e.hp <= 0) return { won: true, turns: t };
     startTurn(e); if (e.hp <= 0) return { won: true, turns: t };
-    applyMove(e, p, greedy(e, p, false)); if (p.hp <= 0) return { won: false, turns: t };
+    applyMove(e, p, greedy(e, p, false)); if (p.hp <= 0) return { won: false, turns: t }; // greedy never shifts
   }
   return { won: false, turns: 60 };
 }
@@ -39,7 +39,8 @@ for (const cls of ["warrior", "wizard"] as ClassId[]) {
     let r = 0;
     for (; r < ROOMS.length; r++) {
       const ecls: ClassId = Math.random() < 0.5 ? "warrior" : "wizard";
-      const res = fight(p, makeFighter(ecls, "E", enemyScaling(r)));
+      const foe = r === BOSS_ROOM ? makeBoss(BOSS_FORMS[i % 3]!, r) : makeFighter(ecls, "E", enemyScaling(r));
+      const res = fight(p, foe);
       turns[r]!.push(res.turns);
       if (!res.won) break;
       restAfterVictory(p);
@@ -56,4 +57,14 @@ for (const pc of ["warrior", "wizard"] as ClassId[])
     const p = makeFighter(pc, "P"), e = makeFighter(ec, "E");
     const r = fight(p, e);
     console.log(`  ${pc} vs ${ec}: ${r.won ? "WIN " : "LOSS"} in ${r.turns} turns (player ${p.hp}/${p.maxHp}, enemy ${e.hp}/${e.maxHp})`);
+  }
+
+// Boss table: a hero grown by four rests vs a greedy (never-shifting) boss in each opening form.
+for (const pc of ["warrior", "wizard"] as ClassId[])
+  for (const form of BOSS_FORMS) {
+    const p = makeFighter(pc, "P");
+    for (let i = 0; i < BOSS_ROOM; i++) restAfterVictory(p);
+    const b = makeBoss(form, BOSS_ROOM);
+    const r = fight(p, b);
+    console.log(`  ${pc} vs boss(${form}): ${r.won ? "WIN " : "LOSS"} in ${r.turns} turns (player ${p.hp}/${p.maxHp}, boss ${b.hp}/${b.maxHp})`);
   }

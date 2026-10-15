@@ -13,10 +13,16 @@ every enemy in a small turn-based dungeon crawler, to see how far that kind of m
 
 - A browser game built with [Phaser 4](https://phaser.io). Battles use a Final Fantasy-style
   layout and keyboard controls, and each fight is a duel in the spirit of Slay the Spire.
-- Five rooms, one mini-boss per room. Between rooms you rest, heal and get a little stronger.
-- Two pre-set characters, a **Warrior** and a **Wizard**. The enemy uses **the same two classes, with the
-  same abilities and rules**. Only the player behind them changes.
+- Five rooms. The first four each hold a champion; between rooms you rest, heal and get a little stronger.
+- Two pre-set characters, a **Warrior** and a **Wizard**. The champions use **the same two classes, with
+  the same abilities and rules**. Only the player behind them changes.
+- The fifth room holds the final boss, **the Hollow Druid**, a shapeshifter you can't play. It has one
+  big HP pool and three forms: **Druid** (Moonfire, Entangle, Rejuvenate), **Bear** (Thick Hide, Roar,
+  Maul) and **Wolf** (Rend bleeds, Frenzy hits twice, Pounce). Jev decides when it shifts.
+- Chiptune sound effects and music, synthesised in code with Web Audio. Press **M** to mute.
 - Controls: arrow keys or W/S to move, Enter, Z or Space to confirm. The mouse works too.
+- To practise the boss, open the game with `#boss` (for example `doj.blocbrain.xyz/#boss`). You start at
+  the final room with a fully grown hero.
 
 <p>
   <img src="docs/title.png" width="49%" alt="Title screen with Warrior and Wizard character cards" />
@@ -25,11 +31,16 @@ every enemy in a small turn-based dungeon crawler, to see how far that kind of m
 
 ## Where Jev comes in
 
-Jev makes two kinds of decisions, both as a single
+Jev makes three kinds of decisions, each as a single
 [Choice](https://docs.typesafe.ai/primitives/choice) question:
 
 1. **Which champion to send** (Warrior or Wizard), given your class, HP and the moves you lean on.
-2. **Which move to make** on every enemy turn.
+2. **Which form the boss opens the final fight in.**
+3. **Which move to make** on every enemy turn. For the boss, "Shift to Bear" or "Shift to Wolf" sit
+   alongside its attacks. A shift is a free action, so after shifting Jev decides again, in the new
+   form. The boss can shift at most every other turn.
+
+![The Hollow Druid in Bear form, with Jev weighing Maul against Roar](docs/boss.png)
 
 The **Jev's Mind** panel shows each decision as it happens: Jev's probability for every option,
 its confidence, its latency (about 200 ms) and the model version.
@@ -93,6 +104,10 @@ distribution shows that.
 - **The AI exposes balance bugs.** Jev's first full game was a stalemate: it found that Frost
   Ward could be repeated almost for free, and used it 16 times. A good opponent turns your design
   mistakes into strategies. `scripts/balance-sim.ts` now checks the numbers offline.
+- **Design the rules so the AI's options are real.** In its first version, shifting cost the boss its
+  whole turn. Jev shifted often anyway, because the entry bonuses looked good, and kept losing tempo.
+  Making the shift a free action turned shapeshifting into a real tactic. Jev now moves between Bear
+  and Wolf as the fight changes, and it shifts to Bear when it's about to die (about 0.9 confidence).
 - **Jev is fast enough for real-time play.** About 200 ms per decision, so the enemy's "thinking"
   pause is mostly for drama.
 
@@ -125,10 +140,12 @@ server.ts               Bun server: serves the game and proxies Jev (the API key
 src/shared/rules.ts     Classes, moves and deterministic combat, shared by browser and server
 src/server/jev.ts       Builds the Jev questions and computes each option's outcome
 src/client/             Phaser scenes (title, map, battle, end), FF-style UI, pixel art drawn in code
+src/client/sfx.ts       Sound effects and chiptune music synthesised with Web Audio
 scripts/                Balance simulator and Jev evaluations
 ```
 
-- No image assets: sprites are character maps drawn into canvas textures.
+- No image or audio assets: sprites are character maps drawn into canvas textures, and every sound
+  is synthesised.
 - Runs on `jev-1.14.0` (set `TYPESAFE_MODEL` to change it).
 - The server calls TypeSafe's [HTTP API](https://docs.typesafe.ai/api) directly. `@typesafe-ai/sdk`
   0.7.0 fails under Bun with "Body already used" (0.6.0 works). The cause is a Bun bug,

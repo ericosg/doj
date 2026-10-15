@@ -1,6 +1,6 @@
 // Asks the server (and so Jev) for enemy decisions. If Jev can't be reached, a simple
 // rule-based fallback keeps the game playable, and the UI labels it as such.
-import { CLASSES, MOVES, applyMove, availableMoves, cloneFighter, type ClassId, type Fighter, type MoveId } from "../shared/rules";
+import { BOSS_FORMS, CLASSES, MOVES, applyMove, availableMoves, cloneFighter, type BossForm, type ClassId, type Fighter, type HeroClass, type MoveId } from "../shared/rules";
 
 export interface Decision<T extends string> {
   choice: T;
@@ -27,11 +27,20 @@ export async function jevOnline(): Promise<boolean> {
   }
 }
 
-export async function chooseEnemyClass(room: number, player: Fighter, playerFavoriteMoves: MoveId[]): Promise<Decision<ClassId>> {
+export async function chooseBossForm(player: Fighter, playerFavoriteMoves: MoveId[]): Promise<Decision<BossForm>> {
   try {
-    return await post<ClassId>("/api/enemy/class", { room, player, playerFavoriteMoves });
+    return await post<BossForm>("/api/enemy/form", { player, playerFavoriteMoves });
   } catch (err) {
-    const choice: ClassId = Math.random() < 0.5 ? "warrior" : "wizard";
+    const choice = BOSS_FORMS[Math.floor(Math.random() * BOSS_FORMS.length)]!;
+    return { choice, probabilities: { [choice]: 1 }, confidence: null, latencyMs: 0, source: "fallback", error: String((err as Error).message ?? err) };
+  }
+}
+
+export async function chooseEnemyClass(room: number, player: Fighter, playerFavoriteMoves: MoveId[]): Promise<Decision<HeroClass>> {
+  try {
+    return await post<HeroClass>("/api/enemy/class", { room, player, playerFavoriteMoves });
+  } catch (err) {
+    const choice: HeroClass = Math.random() < 0.5 ? "warrior" : "wizard";
     return { choice, probabilities: { [choice]: 1 }, confidence: null, latencyMs: 0, source: "fallback", error: String((err as Error).message ?? err) };
   }
 }

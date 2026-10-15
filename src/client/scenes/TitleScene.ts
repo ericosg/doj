@@ -1,8 +1,9 @@
 import Phaser from "phaser";
 import { CLASSES, MOVES, type ClassId } from "../../shared/rules";
 import { jevOnline } from "../ai";
-import { newRun } from "../run";
+import { newRun, skipToBoss } from "../run";
 import { makeTextures, spriteKey } from "../sprites";
+import { isMuted, playMusic, sfx } from "../sfx";
 import { drawWindow, text } from "../ui";
 import { drawDungeon } from "./backdrop";
 
@@ -21,7 +22,8 @@ export class TitleScene extends Phaser.Scene {
     const W = this.scale.width;
     drawDungeon(this, 4, 330);
     text(this, W / 2, 40, "DUNGEON OF JEV", 36, "#ffd84a").setOrigin(0.5, 0);
-    text(this, W / 2, 92, "Five rooms. Five champions. Every foe is chosen and played by Jev.", 10, "#d0d8ff").setOrigin(0.5, 0);
+    text(this, W / 2, 92, "Four champions, then the Hollow Druid. Every foe is played by Jev.", 10, "#d0d8ff").setOrigin(0.5, 0);
+    playMusic("title");
     const status = text(this, W / 2, 112, "Checking Jev...", 10, "#a0a0b0").setOrigin(0.5, 0);
     jevOnline().then((on) =>
       status.setText(on ? "Jev is online and waiting for you." : "Jev is unavailable right now - foes will use a simple fallback AI.").setColor(on ? "#80ffa0" : "#ff8080"),
@@ -29,11 +31,15 @@ export class TitleScene extends Phaser.Scene {
 
     (["warrior", "wizard"] as ClassId[]).forEach((cls, i) => this.card(cls, 110 + i * 390, 140));
     text(this, W / 2, 510, "LEFT/RIGHT to choose  -  ENTER to descend", 12, "#ffffff").setOrigin(0.5, 0);
+    const sound = text(this, W - 12, 8, "", 8, "#8080a0").setOrigin(1, 0);
+    const showSound = () => sound.setText(`M: sound ${isMuted() ? "off" : "on"}`);
+    showSound();
     this.select("warrior");
 
     this.input.keyboard!.on("keydown", (e: KeyboardEvent) => {
-      if (["ArrowLeft", "ArrowRight", "a", "d", "A", "D"].includes(e.key)) this.select(this.pick === "warrior" ? "wizard" : "warrior");
+      if (["ArrowLeft", "ArrowRight", "a", "d", "A", "D"].includes(e.key)) (this.select(this.pick === "warrior" ? "wizard" : "warrior"), sfx.move());
       else if (["Enter", " ", "z", "Z"].includes(e.key)) this.start();
+      else if (e.key === "m" || e.key === "M") this.time.delayedCall(0, showSound);
     });
   }
 
@@ -53,7 +59,7 @@ export class TitleScene extends Phaser.Scene {
       text(this, x + 22, y + 175 + j * 39, mv.text, 7, "#b0b8d8", { wordWrap: { width: w - 44 }, lineSpacing: 3 });
     });
     const zone = this.add.zone(x, y, w, h).setOrigin(0).setInteractive({ useHandCursor: true });
-    zone.on("pointerover", () => this.select(cls));
+    zone.on("pointerover", () => this.pick !== cls && (this.select(cls), sfx.move()));
     zone.on("pointerdown", () => (this.select(cls), this.start()));
     this.cards[cls] = { frame, sprite };
     this.tweens.add({ targets: sprite, y: sprite.y - 4, duration: 700 + 200 * Number(cls === "wizard"), yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
@@ -73,7 +79,9 @@ export class TitleScene extends Phaser.Scene {
   private start() {
     if (this.starting) return;
     this.starting = true;
+    sfx.confirm();
     newRun(this.pick);
+    if (location.hash === "#boss") skipToBoss();
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once("camerafadeoutcomplete", () => this.scene.start("map"));
   }

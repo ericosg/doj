@@ -1,6 +1,6 @@
 // Serves the game and makes Jev calls on the browser's behalf, so the API key never leaves the server.
 import index from "./index.html";
-import { jevAvailable, pickClass, pickMove } from "./src/server/jev";
+import { jevAvailable, pickBossForm, pickClass, pickMove } from "./src/server/jev";
 import { CLASSES, MOVES, ROOMS, type ClassId, type Fighter, type MoveId } from "./src/shared/rules";
 
 const isClass = (x: unknown): x is ClassId => typeof x === "string" && x in CLASSES;
@@ -22,10 +22,11 @@ function fighter(x: any): Fighter {
     mp: int(x.mp, 0, maxMp),
     maxMp,
     block: int(x.block, 0, 999),
-    burn: x.burn ? { perTurn: int(x.burn.perTurn, 0, 99), turns: int(x.burn.turns, 0, 9) } : null,
+    burn: x.burn ? { perTurn: int(x.burn.perTurn, 0, 99), turns: int(x.burn.turns, 0, 9), kind: x.burn.kind === "bleed" ? "bleed" : "burn" } : null,
     empowered: Boolean(x.empowered),
     weakened: Boolean(x.weakened),
     bonusDamage: int(x.bonusDamage, 0, 99),
+    shiftCooldown: int(x.shiftCooldown, 0, 9),
   };
 }
 const moves = (xs: unknown): MoveId[] => (Array.isArray(xs) ? xs.filter(isMove).slice(-5) : []);
@@ -89,6 +90,12 @@ const server = Bun.serve({
         return handle(req, () =>
           pickClass({ room: int(body.room, 0, ROOMS.length - 1), player: fighter(body.player), playerFavoriteMoves: moves(body.playerFavoriteMoves) }),
         );
+      },
+    },
+    "/api/enemy/form": {
+      POST: async (req) => {
+        const body: any = await req.json().catch(() => ({}));
+        return handle(req, () => pickBossForm({ player: fighter(body.player), playerFavoriteMoves: moves(body.playerFavoriteMoves) }));
       },
     },
     "/api/enemy/move": {

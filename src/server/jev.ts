@@ -1,6 +1,8 @@
 // Jev decisions for the enemy. Code computes every number; Jev only makes the judgment call.
 import {
+  BOSS_FORMS,
   CLASSES,
+  HERO_CLASSES,
   MOVES,
   ROOMS,
   applyMove,
@@ -9,8 +11,10 @@ import {
   hpStatus,
   maxThreat,
   rawDamage,
+  type BossForm,
   type ClassId,
   type Fighter,
+  type HeroClass,
   type MoveId,
 } from "../shared/rules";
 
@@ -78,13 +82,14 @@ async function ask<T extends string>(state: { [key: string]: Json }, instruction
 }
 
 function describe(f: Fighter) {
+  const boss = !CLASSES[f.cls].playable;
   return {
-    class: CLASSES[f.cls].name,
+    ...(boss ? { form: `${CLASSES[f.cls].name} (${CLASSES[f.cls].summary})` } : { class: CLASSES[f.cls].name }),
     hp: `${f.hp}/${f.maxHp}`,
     condition: hpStatus(f),
     mp: `${f.mp}/${f.maxMp}`,
     block: f.block,
-    burning: f.burn ? `takes ${f.burn.perTurn} burn damage at the start of each of its next ${f.burn.turns} turns` : "no",
+    damage_over_time: f.burn ? `takes ${f.burn.perTurn} ${f.burn.kind} damage at the start of each of its next ${f.burn.turns} turns` : "none",
     empowered: f.empowered ? "yes - its next attack deals double damage" : "no",
     weakened: f.weakened ? "yes - its next attack deals half damage" : "no",
   };
@@ -116,12 +121,12 @@ export async function pickClass(req: ClassRequest) {
     },
   };
   const criteria = Object.fromEntries(
-    shuffled(Object.values(CLASSES)).map((c) => [
+    shuffled(HERO_CLASSES.map((c) => CLASSES[c])).map((c) => [
       c.id,
       `${c.name}: ${c.summary} Abilities: ${c.moves.map((m) => `${MOVES[m].name} (${MOVES[m].mp} MP) - ${MOVES[m].text}`).join(" ")}`,
     ]),
-  ) as Record<ClassId, string>;
-  const decision = await ask<ClassId>(
+  ) as Record<HeroClass, string>;
+  const decision = await ask<HeroClass>(
     state,
     "The dungeon sends one champion to duel `player`. Which champion class has the best chance of defeating `player`, given the player's class, current HP, and the moves the player relies on?",
     criteria,
@@ -152,13 +157,24 @@ function projectMove(enemy: Fighter, player: Fighter, id: MoveId): string {
 
   if (move.damage) {
     const dealt = player.hp - p.hp;
-    parts.push(`Right now it deals ${dealt} damage: player HP ${player.hp} -> ${p.hp}.`);
+    parts.push(`Right now it deals ${dealt} damage${move.hits ? ` in total over ${move.hits} hits` : ""}: player HP ${player.hp} -> ${p.hp}.`);
     if (p.hp <= 0) parts.push("THIS DEFEATS THE PLAYER AND WINS THE FIGHT.");
   }
   if (move.heal) parts.push(`Enemy HP ${enemy.hp} -> ${e.hp} of ${e.maxHp}.`);
   if (move.burn) {
     const total = move.burn.perTurn * move.burn.turns;
-    parts.push(player.burn ? `Replaces the player's current burn with ${total} burn damage over 3 turns.` : `Adds ${total} burn damage over the player's next 3 turns.`);
+    const kind = move.burn.kind;
+    parts.push(player.burn ? `Replaces the player's current ${player.burn.kind} with ${total} ${kind} damage over ${move.burn.turns} turns.` : `Adds ${total} ${kind} damage over the player's next ${move.burn.turns} turns.`);
+  }
+  if (move.cleanse && (enemy.burn || enemy.weakened)) {
+    parts.push(`Removes the enemy's ${[enemy.burn && `${enemy.burn.kind} (${enemy.burn.perTurn * enemy.burn.turns} damage still to come)`, enemy.weakened && "weakness"].filter(Boolean).join(" and ")}.`);
+  }
+  if (move.shift) {
+    const best = bestAttack(e, false);
+    parts.push(
+      `Costs no MP and does not use up the turn: right after shifting, the enemy still acts this turn in ${CLASSES[move.shift].name} form, where its best attack right now would deal ${best.damage} damage before block (${best.name}).` +
+        ` ${CLASSES[move.shift].name} form: ${CLASSES[move.shift].summary} The enemy cannot shift again until the turn after next.`,
+    );
   }
   if (move.block || move.weaken) {
     const after = maxThreat(p, e);
@@ -169,13 +185,47 @@ function projectMove(enemy: Fighter, player: Fighter, id: MoveId): string {
       );
     }
   }
-  if (move.empower) {
-    const next = cloneFighter(e);
-    next.mp = Math.min(next.maxMp, next.mp + CLASSES[next.cls].mpRegen);
-    const best = Math.max(...availableMoves(next).map((m) => rawDamage(next, MOVES[m])));
-    parts.push(`Next turn the enemy's best attack would deal ${best} damage before block.`);
-  }
+  if (move.empower) parts.push(`Next turn the enemy's best attack would deal ${bestAttack(e, true).damage} damage before block.`);
   return parts.join(" ");
+}
+
+/** Strongest single attack `f` could make now, or next turn after MP regen. */
+function bestAttack(f: Fighter, nextTurn: boolean): { damage: number; name: string } {
+  const next = cloneFighter(f);
+  if (nextTurn) next.mp = Math.min(next.maxMp, next.mp + CLASSES[next.cls].mpRegen);
+  let best = { damage: 0, name: "none" };
+  for (const m of availableMoves(next)) {
+    const dmg = rawDamage(next, MOVES[m]) * (MOVES[m].hits ?? 1);
+    if (dmg > best.damage) best = { damage: dmg, name: MOVES[m].name };
+  }
+  return best;
+}
+
+// ---- Which form should the boss open the fight in? ------------------------
+
+export async function pickBossForm(req: { player: Fighter; playerFavoriteMoves: MoveId[] }) {
+  const state = {
+    encounter: `The final room. The Hollow Druid, a shapeshifting boss with a single large HP pool, duels \`player\` to the death. It can shift between forms during the fight as a free action, at most every other turn.`,
+    player: {
+      ...describe(req.player),
+      abilities: CLASSES[req.player.cls].moves.map((m) => `${MOVES[m].name} (${MOVES[m].mp} MP): ${MOVES[m].text}`),
+      moves_used_most_so_far: req.playerFavoriteMoves.map((m) => MOVES[m].name),
+    },
+  };
+  const criteria = Object.fromEntries(
+    shuffled(BOSS_FORMS).map((f) => [
+      f,
+      `${CLASSES[f].name} form: ${CLASSES[f].summary} Moves: ${CLASSES[f].moves.filter((m) => !MOVES[m].shift).map((m) => `${MOVES[m].name} (${MOVES[m].mp} MP) - ${MOVES[m].text}`).join(" ")}`,
+    ]),
+  ) as Record<BossForm, string>;
+  const decision = await ask<BossForm>(
+    state,
+    "Which form should the Hollow Druid start the fight in to have the best chance of defeating `player`, given the player's class, HP, and the moves the player relies on?",
+    criteria,
+  );
+  // Like the champion class, this is a preference call: draw from Jev's distribution for variety.
+  decision.choice = sample(decision.probabilities);
+  return decision;
 }
 
 export function pickMove(req: MoveRequest) {
@@ -183,7 +233,9 @@ export function pickMove(req: MoveRequest) {
   const options = availableMoves(enemy);
   const threat = maxThreat(player, enemy);
   const state = {
-    situation: `Turn ${req.turn} of a one-on-one turn-based duel. You control \`enemy\`. The duel ends when either side reaches 0 HP. Block absorbs damage and expires at the start of its owner's next turn.`,
+    situation:
+      `Turn ${req.turn} of a one-on-one turn-based duel. You control \`enemy\`. The duel ends when either side reaches 0 HP. Block absorbs damage and expires at the start of its owner's next turn.` +
+      (CLASSES[enemy.cls].playable ? "" : " `enemy` is a shapeshifter: each form has different moves. Shifting is a free action, so after shifting the enemy still acts this turn in its new form."),
     enemy: describe(enemy),
     player: describe(player),
     danger: {

@@ -1,7 +1,8 @@
 # Dungeon of Jev
 
 Turn-based dungeon crawler (Phaser 4.2.1, browser) where every enemy is chosen and played by
-Jev, TypeSafe's System One model. Five rooms, one duel per room; warrior or wizard on both sides.
+Jev, TypeSafe's System One model. Rooms 1–4: a warrior or wizard champion (same classes as the player).
+Room 5 (`BOSS_ROOM`): the Hollow Druid, a non-playable shapeshifter (druid/bear/wolf forms, one HP pool).
 
 **Use the TypeSafe skill (`typesafe:typesafe-ai`) and the live docs (https://docs.typesafe.ai/llms.txt)
 for any Jev work.** Phaser 4 ships agent docs in `node_modules/phaser/skills/` — read those, not v3 memory
@@ -12,6 +13,8 @@ for any Jev work.** Phaser 4 ships agent docs in `node_modules/phaser/skills/` �
 - `src/shared/rules.ts` — classes, moves, deterministic combat. Used by BOTH the browser and the server.
 - `src/server/jev.ts` — builds Jev requests. One Choice question per decision.
 - `src/client/` — Phaser scenes (`title` → `map` → `battle` → `end`), FF-style UI, pixel sprites drawn from char maps.
+- `src/client/sfx.ts` — all sound: Web Audio synth effects + 3 chiptune loops (title/battle/boss). M mutes (localStorage).
+- `#boss` in the URL starts a practice run at the boss with a fully grown hero (`skipToBoss` in `run.ts`).
 
 ## Jev design rules (from TypeSafe docs — keep them)
 - Code does all arithmetic; Jev gets per-option *outcomes* in the criteria ("player HP 34 -> 14", "DEFEATS THE PLAYER").
@@ -36,6 +39,10 @@ Public API is guarded: 30 Jev calls/min per IP, 10M input tokens/day (~$0.42) �
 - `scripts/balance-sim.ts` — offline (no API): careful bot vs greedy AI, 5-room runs + matchup table. Run after any number change.
 - `scripts/eval-jev.ts` — real Jev on clear-cut scenarios (lethal available, about to die, empowered…), 3× each with shuffled options.
 - `scripts/jev-sim.ts [n]` — careful bot vs real Jev, full runs (~$0.01 per run).
+- Boss shifting is a free action (`move.shift`): after a shift the client/sims ask Jev again in the new form;
+  `shiftCooldown` (2) stops shifting more than every other turn. When shifting cost the whole turn, Jev
+  over-shifted and always lost — keep it free unless you rebalance.
+- Boss opening form is sampled from Jev's odds like the champion class.
 - Champion class is *sampled* from Jev's probabilities (Jev rates it ~50/50; argmax always fielded one class). Moves use argmax.
 - Model pinned to `jev-1.14.0` (2026-10-15; `jev-latest` still pointed at 1.13.0). Override with `TYPESAFE_MODEL`.
   1.14 passed every eval scenario and plays noticeably harder than 1.13 in `jev-sim`.

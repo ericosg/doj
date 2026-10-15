@@ -1,7 +1,8 @@
 import Phaser from "phaser";
-import { ROOMS } from "../../shared/rules";
+import { BOSS_ROOM, ROOMS } from "../../shared/rules";
 import { run } from "../run";
 import { spriteKey } from "../sprites";
+import { playMusic, sfx } from "../sfx";
 import { drawWindow, text } from "../ui";
 
 /** The dungeon path: one node per room, each room is a fight. */
@@ -13,6 +14,7 @@ export class MapScene extends Phaser.Scene {
   create() {
     const W = this.scale.width;
     this.cameras.main.setBackgroundColor("#08060e").fadeIn(300);
+    playMusic("title");
     text(this, W / 2, 30, "THE DESCENT", 22, "#ffd84a").setOrigin(0.5, 0);
 
     const y = 210;
@@ -43,13 +45,14 @@ export class MapScene extends Phaser.Scene {
       `${p.name} the ${p.cls === "warrior" ? "Warrior" : "Wizard"}   HP ${p.hp}/${p.maxHp}   MP ${p.mp}/${p.maxMp}`,
     ];
     text(this, 190, 352, lines.join("\n"), 10, "#ffffff", { wordWrap: { width: W - 380 } });
-    const prompt = text(this, W / 2, 470, "ENTER to fight", 12, "#ffd84a").setOrigin(0.5, 0);
+    const prompt = text(this, W / 2, 470, run.room === BOSS_ROOM ? "ENTER to face the Hollow Druid" : "ENTER to fight", 12, run.room === BOSS_ROOM ? "#ff8060" : "#ffd84a").setOrigin(0.5, 0);
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 600, yoyo: true, repeat: -1 });
 
     let leaving = false;
     const go = () => {
       if (leaving) return;
       leaving = true;
+      sfx.confirm();
       this.cameras.main.flash(250, 255, 255, 255);
       this.time.delayedCall(250, () => this.scene.start("battle"));
     };

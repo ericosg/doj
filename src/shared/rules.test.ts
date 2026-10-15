@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { CLASSES, MOVES, applyMove, availableMoves, makeFighter, maxThreat, restAfterVictory, startTurn } from "./rules";
+import { BOSS, BOSS_FORMS, CLASSES, HERO_CLASSES, MOVES, applyMove, availableMoves, makeBoss, makeFighter, maxThreat, restAfterVictory, startTurn } from "./rules";
 
 const SLASH = MOVES.slash.damage!;
 const GUARD = MOVES.guard.block!;
@@ -66,4 +66,59 @@ test("resting clears statuses, refills MP, and never overheals", () => {
   expect(p.hp).toBeLessThanOrEqual(p.maxHp);
   expect(p.hp).toBeGreaterThan(1);
   expect(p).toMatchObject({ mp: p.maxMp, block: 0, empowered: false, weakened: false, burn: null });
+});
+
+test("boss shifts as a free action, gets the entry bonus, then waits out the cooldown", () => {
+  const boss = makeBoss("druid", 0);
+  const hero = makeFighter("warrior", "Hero");
+  const canShift = () => availableMoves(boss).some((m) => MOVES[m].shift);
+  expect(availableMoves(boss)).toContain("shift_bear");
+  applyMove(boss, hero, "shift_bear");
+  expect(boss.cls).toBe("bear");
+  expect(boss.block).toBe(MOVES.shift_bear.block!);
+  expect(canShift()).toBe(false); // the follow-up action this turn can't be another shift
+  applyMove(boss, hero, "swipe");
+  startTurn(boss);
+  expect(canShift()).toBe(false); // next turn: still cooling down
+  startTurn(boss);
+  expect(availableMoves(boss)).toEqual(expect.arrayContaining(["shift_druid", "shift_wolf"]));
+  expect(boss.maxHp).toBe(BOSS.maxHp);
+});
+
+test("multi-hit applies block per hit and empower to every hit", () => {
+  const wolf = makeBoss("wolf", 0);
+  const hero = makeFighter("warrior", "Hero");
+  hero.block = 5;
+  const per = MOVES.frenzy.damage!;
+  const events = applyMove(wolf, hero, "frenzy");
+  expect(events.filter((e) => e.kind === "damage")).toHaveLength(2);
+  expect(hero.hp).toBe(hero.maxHp - (2 * per - 5));
+  wolf.empowered = true;
+  wolf.mp = 99;
+  hero.hp = hero.maxHp;
+  applyMove(wolf, hero, "frenzy");
+  expect(hero.hp).toBe(hero.maxHp - 4 * per);
+});
+
+test("bleed ticks like burn; wolf shift cleanses it", () => {
+  const boss = makeBoss("bear", 0);
+  const hero = makeFighter("wizard", "Hero");
+  const wolf = makeBoss("wolf", 0);
+  applyMove(wolf, hero, "rend");
+  expect(hero.burn?.kind).toBe("bleed");
+  expect(startTurn(hero)).toBe(MOVES.rend.burn!.perTurn);
+  applyMove(hero, boss, "fireball");
+  boss.weakened = true;
+  applyMove(boss, hero, "shift_wolf");
+  expect(boss.burn).toBeNull();
+  expect(boss.weakened).toBe(false);
+});
+
+test("boss forms are not playable; threat counts every hit", () => {
+  expect(HERO_CLASSES.every((c) => CLASSES[c].playable)).toBe(true);
+  expect(BOSS_FORMS.some((c) => CLASSES[c].playable)).toBe(false);
+  const wolf = makeBoss("wolf", 0);
+  wolf.mp = MOVES.frenzy.mp - CLASSES.wolf.mpRegen;
+  const t = maxThreat(wolf, makeFighter("warrior", "Hero"));
+  expect(t.damage).toBe(Math.max(MOVES.bite.damage!, MOVES.frenzy.damage! * 2));
 });

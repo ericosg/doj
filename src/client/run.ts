@@ -1,5 +1,5 @@
 // State for one trip through the dungeon.
-import { REST, makeFighter, restAfterVictory, type ClassId, type Fighter, type MoveId } from "../shared/rules";
+import { BOSS_ROOM, REST, makeFighter, restAfterVictory, type ClassId, type Fighter, type MoveId } from "../shared/rules";
 
 export interface Run {
   player: Fighter;
@@ -21,6 +21,12 @@ export function favoriteMoves(): MoveId[] {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([m]) => m);
+}
+
+/** Practice shortcut (open the game with #boss): start at the boss with a hero grown by every rest. */
+export function skipToBoss(): void {
+  for (; run.room < BOSS_ROOM; run.room++) restAfterVictory(run.player);
+  run.restMessage = "Practice run: straight to the Hollow Throne.";
 }
 
 export function rest(): void {

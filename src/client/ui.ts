@@ -1,5 +1,6 @@
 // Final Fantasy style UI: blue gradient windows, a hand cursor menu, and stat bars.
 import Phaser from "phaser";
+import { sfx } from "./sfx";
 
 export const FONT = '"Press Start 2P", monospace';
 
@@ -80,15 +81,15 @@ export class Menu<T> {
     this.hand = scene.add.image(x - 30, y, "hand").setScale(2).setOrigin(0, 0).setDepth(10);
     items.forEach((it, i) => {
       const t = text(scene, x, y + i * rowH, it.label, 13, it.enabled ? "#ffffff" : "#7a7a90").setInteractive({ useHandCursor: true });
-      t.on("pointerover", () => this.active && this.select(i));
+      t.on("pointerover", () => this.active && i !== this.index && (this.select(i), sfx.move()));
       t.on("pointerdown", () => this.active && (this.select(i), this.confirm()));
       this.texts.push(t);
       if (it.right) this.rights.push(text(scene, x + width, y + i * rowH, it.right, 13, it.enabled ? "#a0e0ff" : "#5a5a70").setOrigin(1, 0));
     });
     this.keyHandler = (e) => {
       if (!this.active) return;
-      if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") this.select((this.index + 1) % items.length);
-      else if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") this.select((this.index - 1 + items.length) % items.length);
+      if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") (this.select((this.index + 1) % items.length), sfx.move());
+      else if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") (this.select((this.index - 1 + items.length) % items.length), sfx.move());
       else if (e.key === "Enter" || e.key === " " || e.key === "z" || e.key === "Z") this.confirm();
     };
     scene.input.keyboard!.on("keydown", this.keyHandler);
@@ -106,9 +107,11 @@ export class Menu<T> {
   private confirm() {
     const it = this.items[this.index]!;
     if (!it.enabled) {
+      sfx.deny();
       this.scene.cameras.main.shake(80, 0.002);
       return;
     }
+    sfx.confirm();
     this.setActive(false);
     this.onPick(it.value);
   }
